@@ -3,6 +3,9 @@
   "name": "alch-gg",
   "main": "worker/index.ts",
   "compatibility_date": "2025-01-01",
+  "build": {
+    "command": "npm run build"
+  },
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS"
