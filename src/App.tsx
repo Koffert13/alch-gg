@@ -154,12 +154,13 @@ export function App() {
     []
   );
 
-  // Initial background sync on mount if cache is older than 15 minutes or different realm
+  // Initial background sync on mount if cache is missing, fallback, stale (>20m), or different realm
   useEffect(() => {
     const cached = storage.loadPriceCache();
     const isStale =
       !cached ||
-      Date.now() - cached.fetchedAt > 15 * 60 * 1000 ||
+      cached.source !== 'live' ||
+      Date.now() - cached.fetchedAt > 20 * 60 * 1000 ||
       cached.realm.region !== realm.region ||
       cached.realm.ruleset !== realm.ruleset ||
       cached.realm.faction !== realm.faction;
@@ -169,6 +170,30 @@ export function App() {
     // Only run on mount
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Automatic background sync every 30 minutes (guarantees at least hourly live updates)
+  // plus immediate sync when returning to the tab if data is >30m old
+  useEffect(() => {
+    const AUTO_SYNC_MS = 30 * 60 * 1000;
+    const intervalId = window.setInterval(() => {
+      void syncPrices(realm, false);
+    }, AUTO_SYNC_MS);
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        const ageMs = Date.now() - priceData.fetchedAt;
+        if (priceData.source !== 'live' || ageMs >= AUTO_SYNC_MS) {
+          void syncPrices(realm, false);
+        }
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      window.clearInterval(intervalId);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
+  }, [realm, priceData.fetchedAt, priceData.source, syncPrices]);
 
   const allRecipes = useMemo(
     () => [...customRecipes, ...CLASSIC_ALCHEMY_RECIPES],
@@ -532,6 +557,19 @@ export function App() {
             onDeleteCustomRecipe={handleDeleteCustomRecipe}
           />
         )}
+
+        <footer className="mt-8 border-t border-[#16201b] pt-4 text-center text-[11px] text-[#5e7166]">
+          Live AH data via{' '}
+          <a
+            href="https://forever-ah.com/api/"
+            target="_blank"
+            rel="noreferrer"
+            className="text-[#8fa196] underline decoration-[#2c3f35] underline-offset-2 hover:text-emerald-300"
+          >
+            Forever AH
+          </a>{' '}
+          &amp; Blizzard Battle.net API · Auto-refreshes every 30 min (hourly snapshots)
+        </footer>
       </main>
 
       {/* Mobile Bottom Tab Bar */}

@@ -192,6 +192,9 @@ const BASE_MOCK_ITEMS: ReadonlyArray<[number, string, number, number, number, nu
   [21547, 'Recipe: Elixir of Greater Firepower', 420000, 475000, 9, 5],
 ];
 
+/** All non-vendor Classic Alchemy herbs, reagents, consumables, bars, and AH recipe scrolls */
+export const TRACKED_AH_ITEM_IDS: readonly number[] = BASE_MOCK_ITEMS.map(([itemId]) => itemId);
+
 function getRealmPriceMultiplier(realm: RealmSettings): number {
   const regionScale: Record<RealmSettings['region'], number> = {
     eu: 1.0,

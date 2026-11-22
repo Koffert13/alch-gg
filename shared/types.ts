@@ -20,10 +20,12 @@ export interface AhItemPrice {
 
 export interface PricesApiResponse {
   source: 'live' | 'fallback';
+  provider?: string;
+  houseId?: number;
   realm: RealmSettings;
   upstreamBaseUrl: string;
   fetchedAt: number; // unix ms
-  snapshotAt: number; // unix seconds from wowfah <aside class="topbar" data-snap="...">
+  snapshotAt: number; // unix seconds
   itemCount: number;
   items: Record<number, AhItemPrice>;
   categoriesFetched: number;

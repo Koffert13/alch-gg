@@ -1,93 +1,48 @@
-import { buildMockPrices } from './mockPrices';
+import { fetchForeverAhPrices } from './foreverAh';
+import { buildMockPrices, TRACKED_AH_ITEM_IDS } from './mockPrices';
 import type { PricesApiResponse, RealmSettings } from './types';
-import {
-  buildWowfahBaseUrl,
-  mergeAhItems,
-  parseWowfahCategoryHtml,
-  WOWFAH_CATEGORY_PATHS,
-  type ParsedWowfahPage,
-} from './wowfah';
-
-const FETCH_TIMEOUT_MS = 8500;
-
-async function fetchCategoryPage(url: string): Promise<ParsedWowfahPage | null> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
-
-  try {
-    const res = await fetch(url, {
-      method: 'GET',
-      signal: controller.signal,
-      headers: {
-        Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.9',
-      },
-    });
-    if (!res.ok) {
-      return null;
-    }
-    const html = await res.text();
-    const parsed = parseWowfahCategoryHtml(html);
-    if (parsed.items.length === 0) {
-      return null;
-    }
-    return parsed;
-  } catch {
-    return null;
-  } finally {
-    clearTimeout(timer);
-  }
-}
+import { buildWowfahBaseUrl } from './wowfah';
 
 /**
- * Fetches all 10 wowfah.com server-rendered category HTML pages in parallel,
- * normalizes prices to integer copper, and falls back to realistic Classic AH
- * market data if upstream is unavailable or returns no rows.
+ * Fetches live hourly WoW: Forever Auction House prices via the open,
+ * documented Forever AH JSON API (sourced from Blizzard's Battle.net API),
+ * and falls back cleanly to calibrated Classic AH data only if upstream is unreachable.
  */
 export async function fetchRealmPrices(realm: RealmSettings): Promise<PricesApiResponse> {
-  const upstreamBaseUrl = buildWowfahBaseUrl(realm);
-  const urls = WOWFAH_CATEGORY_PATHS.map((path) => `${upstreamBaseUrl}${path}`);
-
-  const results = await Promise.allSettled(urls.map((u) => fetchCategoryPage(u)));
-  const parsedPages: ParsedWowfahPage[] = [];
-
-  for (const r of results) {
-    if (r.status === 'fulfilled' && r.value && r.value.items.length > 0) {
-      parsedPages.push(r.value);
-    }
-  }
-
   const fetchedAt = Date.now();
-  const { items, snapshotAt } = mergeAhItems(parsedPages);
-  const itemCount = Object.keys(items).length;
 
-  if (itemCount > 0) {
+  const live = await fetchForeverAhPrices(realm, TRACKED_AH_ITEM_IDS);
+  if (live) {
+    const itemCount = Object.keys(live.items).length;
     return {
       source: 'live',
+      provider: 'Forever AH (Blizzard Battle.net API)',
+      houseId: live.house.house_id,
       realm,
-      upstreamBaseUrl,
+      upstreamBaseUrl: live.upstreamUrl,
       fetchedAt,
-      snapshotAt: snapshotAt ?? Math.floor(fetchedAt / 1000),
+      snapshotAt: live.snapshotAt ?? Math.floor(fetchedAt / 1000),
       itemCount,
-      items,
-      categoriesFetched: parsedPages.length,
-      categoriesTotal: WOWFAH_CATEGORY_PATHS.length,
+      items: live.items,
+      categoriesFetched: 1,
+      categoriesTotal: 1,
     };
   }
 
-  // Realistic Classic fallback when upstream is unreachable or blocks automated fetches
+  // Fallback only if upstream API is unreachable
   const mockItems = buildMockPrices(realm);
   return {
     source: 'fallback',
+    provider: 'Calibrated Offline Fallback',
     realm,
-    upstreamBaseUrl,
+    upstreamBaseUrl: buildWowfahBaseUrl(realm),
     fetchedAt,
     snapshotAt: Math.floor(fetchedAt / 1000),
     itemCount: Object.keys(mockItems).length,
     items: mockItems,
     categoriesFetched: 0,
-    categoriesTotal: WOWFAH_CATEGORY_PATHS.length,
+    categoriesTotal: 1,
     notice:
-      'Live wowfah.com HTML pages were unavailable from the edge worker — showing calibrated Classic AH fallback prices. Tap any item or recipe scroll to enter local overrides.',
+      'Live Auction House feed is temporarily unreachable — showing calibrated fallback prices. Tap Sync to retry or tap any item to override.',
   };
 }

@@ -9,8 +9,8 @@ import type {
   Region,
   Ruleset,
 } from '../../shared/types';
+import { getBlizzardHouseId } from '../../shared/foreverAh';
 import {
-  buildWowfahBaseUrl,
   VALID_FACTIONS,
   VALID_REGIONS,
   VALID_RULESETS,
@@ -97,7 +97,7 @@ export function SettingsTab({
           <div>
             <h2 className="text-sm font-semibold text-[#e7ece8]">Auction House Realm</h2>
             <p className="text-xs text-[#7a9083]">
-              Target upstream source for parallel wowfah.com category sync
+              Live hourly Blizzard Battle.net AH snapshots via Forever AH API (auto-syncs every 30m)
             </p>
           </div>
         </div>
@@ -171,9 +171,9 @@ export function SettingsTab({
         </div>
 
         <div className="rounded-xl border border-[#1d2b24] bg-[#0b110e] px-3 py-2 text-xs">
-          <span className="text-[#6d8276]">Upstream Endpoint: </span>
+          <span className="text-[#6d8276]">Live Feed Target: </span>
           <span className="font-tabular break-all text-emerald-300">
-            {buildWowfahBaseUrl(draft)}
+            forever-ah.com · {draft.region.toUpperCase()} House #{getBlizzardHouseId(draft.ruleset, draft.faction)} ({RULESET_LABELS[draft.ruleset]} {FACTION_LABELS[draft.faction]})
           </span>
         </div>
 
@@ -303,7 +303,10 @@ export function SettingsTab({
               <span className="text-[#6d8276]">Feed Source</span>
               <div className="mt-0.5 font-semibold">
                 {priceData.source === 'live' ? (
-                  <span className="text-emerald-400">Live wowfah.com</span>
+                  <span className="text-emerald-400">
+                    {priceData.provider ?? 'Live Forever AH'}
+                    {priceData.houseId ? ` (#${priceData.houseId})` : ''}
+                  </span>
                 ) : (
                   <span className="text-amber-300">Calibrated Fallback</span>
                 )}
